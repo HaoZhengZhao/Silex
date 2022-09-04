@@ -40,13 +40,36 @@ class ControllerResolver extends BaseControllerResolver
     protected function doGetArguments(Request $request, $controller, array $parameters)
     {
         foreach ($parameters as $param) {
-            if ($param->getClass() && $param->getClass()->isInstance($this->app)) {
-                $request->attributes->set($param->getName(), $this->app);
-
-                break;
+            if (version_compare(PHP_VERSION, '8.0.0', 'lt')) {
+                if ($param->getClass() && $param->getClass()->isInstance($this->app)) {
+                    $request->attributes->set($param->getName(), $this->app);
+    
+                    break;
+                }
+            } else {
+                // php8.0
+                $refClass = $this->getClass($param);
+                if ($refClass && $refClass->isInstance($this->app)) {
+                    $request->attributes->set($param->getName(), $this->app);
+    
+                    break;
+                }
             }
         }
 
         return parent::doGetArguments($request, $controller, $parameters);
+    }
+
+    private function getClass(\ReflectionParameter $parameter)
+    {
+        $type = $parameter->getType();
+        if (!$type || $type->isBuiltin())
+            return NULL;
+
+        if(!class_exists($type->getName()))
+            return NULL;
+
+      
+        return  new \ReflectionClass($type->getName());
     }
 }
