@@ -40,36 +40,31 @@ class ControllerResolver extends BaseControllerResolver
     protected function doGetArguments(Request $request, $controller, array $parameters)
     {
         foreach ($parameters as $param) {
-            if (version_compare(PHP_VERSION, '8.0.0', 'lt')) {
-                if ($param->getClass() && $param->getClass()->isInstance($this->app)) {
-                    $request->attributes->set($param->getName(), $this->app);
+            if ($this->typeMatchesAppClass($param)) {
+                $request->attributes->set($param->getName(), $this->app);
     
-                    break;
-                }
-            } else {
-                // php8.0
-                $refClass = $this->getClass($param);
-                if ($refClass && $refClass->isInstance($this->app)) {
-                    $request->attributes->set($param->getName(), $this->app);
-    
-                    break;
-                }
+                break;
             }
         }
 
         return parent::doGetArguments($request, $controller, $parameters);
     }
 
-    private function getClass(\ReflectionParameter $parameter)
+    /**
+     * @return bool
+     */
+    private function typeMatchesAppClass(\ReflectionParameter $param)
     {
-        $type = $parameter->getType();
-        if (!$type || $type->isBuiltin())
-            return NULL;
+        if (!method_exists($param, 'getType')) {
+            return $param->getClass() && $param->getClass()->isInstance($this->app);
+        }
 
-        if(!class_exists($type->getName()))
-            return NULL;
+        if (!($type = $param->getType()) || $type->isBuiltin()) {
+            return false;
+        }
 
-      
-        return  new \ReflectionClass($type->getName());
+        $class = new \ReflectionClass($type instanceof \ReflectionNamedType ? $type->getName() : (string) $type);
+
+        return $class && $class->isInstance($this->app);
     }
 }
