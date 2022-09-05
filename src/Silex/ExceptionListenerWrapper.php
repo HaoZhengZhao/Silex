@@ -69,7 +69,7 @@ class ExceptionListenerWrapper
         if ($callbackReflection->getNumberOfParameters() > 0) {
             $parameters = $callbackReflection->getParameters();
             $expectedException = $parameters[0];
-            if ($expectedException->getClass() && !$expectedException->getClass()->isInstance($exception)) {
+            if ($this->typeMatchesExceptionClass($expectedException, $exception)) {
                 return false;
             }
         }
@@ -89,5 +89,23 @@ class ExceptionListenerWrapper
                 $event->setResponse($viewEvent->getResponse());
             }
         }
+    }
+
+    /**
+     * @return bool
+     */
+    private function typeMatchesExceptionClass($param, $exception)
+    {
+        if (!method_exists($param, 'getType')) {
+            return $param->getClass() && !$param->getClass()->isInstance($exception);
+        }
+
+        if (!($type = $param->getType()) || $type->isBuiltin()) {
+            return false;
+        }
+
+        $class = new \ReflectionClass($type instanceof \ReflectionNamedType ? $type->getName() : (string) $type);
+
+        return $class && !$class->isInstance($exception);
     }
 }

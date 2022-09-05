@@ -68,20 +68,73 @@ class ViewListenerWrapper
         if ($callbackReflection->getNumberOfParameters() > 0) {
             $parameters = $callbackReflection->getParameters();
             $expectedControllerResult = $parameters[0];
-
-            if ($expectedControllerResult->getClass() && (!is_object($controllerResult) || !$expectedControllerResult->getClass()->isInstance($controllerResult))) {
+            $expectedControllerResultClass = $this->getClass($expectedControllerResult);
+            if ($expectedControllerResultClass && (!is_object($controllerResult) || !$expectedControllerResultClass->isInstance($controllerResult))) {
                 return false;
             }
 
-            if ($expectedControllerResult->isArray() && !is_array($controllerResult)) {
+            if ($this->declaresArray($expectedControllerResult) && !is_array($controllerResult)) {
                 return false;
             }
 
-            if (method_exists($expectedControllerResult, 'isCallable') && $expectedControllerResult->isCallable() && !is_callable($controllerResult)) {
+            if ($this->declaresCallable($expectedControllerResult) && !is_callable($controllerResult)) {
                 return false;
             }
         }
 
         return true;
+    }
+
+    private function getClass($param)
+    {
+        if (!method_exists($param, 'getType')) {
+            return $param->getClass();
+        }
+
+        if (!($type = $param->getType()) || $type->isBuiltin()) {
+            return null;
+        }
+
+        $class = new \ReflectionClass($type instanceof \ReflectionNamedType ? $type->getName() : (string) $type);
+
+        return $class;
+    }
+
+    private function declaresArray(\ReflectionParameter $param)
+    {
+        if (!method_exists($param, 'getType')) {
+            return $param->isArray();
+        }
+
+        $reflectionType = $param->getType();
+
+        if (!$reflectionType) return false;
+
+        $types = $reflectionType instanceof \ReflectionUnionType
+            ? $reflectionType->getTypes()
+            : [$reflectionType];
+
+        return in_array('array', array_map(function(\ReflectionNamedType $t) {
+            return $t->getName();
+        }, $types));
+    }
+
+    private function declaresCallable(\ReflectionParameter $param): bool
+    {
+        if (!method_exists($param, 'getType')) {
+            return $param->isCallable();
+        }
+
+        $reflectionType = $param->getType();
+
+        if (!$reflectionType) return false;
+
+        $types = $reflectionType instanceof \ReflectionUnionType
+            ? $reflectionType->getTypes()
+            : [$reflectionType];
+
+            return in_array('callable', array_map(function(\ReflectionNamedType $t) {
+                return $t->getName();
+            }, $types));
     }
 }
